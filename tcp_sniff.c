@@ -40,44 +40,50 @@ struct tcpheader {
 void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
     struct ethheader *eth = (struct ethheader *)packet;
 
-    if (ntohs(eth->ether_type) == 0x0800) {  // Check if IP packet
+    if (ntohs(eth->ether_type) == 0x0800) {  // IP 패킷인지 확인
         struct ipheader *ip = (struct ipheader *)(packet + sizeof(struct ethheader));
 
-        printf("\n==== Ethernet Header ====\n");
-        printf("Src MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        printf("\n==================================================\n");
+        printf("[+] Ethernet Header\n");
+        printf("    ▸ Src MAC : %02x:%02x:%02x:%02x:%02x:%02x\n",
                eth->ether_shost[0], eth->ether_shost[1], eth->ether_shost[2],
                eth->ether_shost[3], eth->ether_shost[4], eth->ether_shost[5]);
-        printf("Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+        printf("    ▸ Dst MAC : %02x:%02x:%02x:%02x:%02x:%02x\n",
                eth->ether_dhost[0], eth->ether_dhost[1], eth->ether_dhost[2],
                eth->ether_dhost[3], eth->ether_dhost[4], eth->ether_dhost[5]);
 
-        printf("\n==== IP Header ====\n");
-        printf("Src IP: %s\n", inet_ntoa(ip->iph_sourceip));
-        printf("Dst IP: %s\n", inet_ntoa(ip->iph_destip));
+        printf("\n[+] IP Header\n");
+        printf("    ▸ Src IP  : %s\n", inet_ntoa(ip->iph_sourceip));
+        printf("    ▸ Dst IP  : %s\n", inet_ntoa(ip->iph_destip));
 
-        if (ip->iph_protocol == IPPROTO_TCP) {  // Check if TCP packet
+        if (ip->iph_protocol == IPPROTO_TCP) {
             struct tcpheader *tcp = (struct tcpheader *)(packet + sizeof(struct ethheader) + (ip->iph_ihl * 4));
 
-            printf("\n==== TCP Header ====\n");
-            printf("Src Port: %d\n", ntohs(tcp->tcp_sport));
-            printf("Dst Port: %d\n", ntohs(tcp->tcp_dport));
+            printf("\n[+] TCP Header\n");
+            printf("    ▸ Src Port: %d\n", ntohs(tcp->tcp_sport));
+            printf("    ▸ Dst Port: %d\n", ntohs(tcp->tcp_dport));
 
-            // TCP Payload Calculation
+            // TCP Payload 출력
             int ip_header_len = ip->iph_ihl * 4;
             int tcp_header_len = (tcp->tcp_offx2 >> 4) * 4;
             int payload_offset = sizeof(struct ethheader) + ip_header_len + tcp_header_len;
             int payload_length = header->caplen - payload_offset;
 
-            printf("\n==== Payload (First 20 bytes) ====\n");
+            printf("\n[+] Payload (First 20 bytes)\n");
             if (payload_length > 0) {
+                printf("    ▸ ");
                 for (int i = 0; i < 20 && i < payload_length; i++) {
                     printf("%02x ", packet[payload_offset + i]);
                 }
                 printf("\n");
             } else {
-                printf("No Payload\n");
+                printf("    ▸ No Payload\n");
             }
+        } else {
+            printf("\n[+] Not a TCP Packet (Filtered Out)\n");
         }
+
+        printf("==================================================\n");
     }
 }
 
@@ -86,7 +92,7 @@ int main() {
     pcap_t *handle;
 
     // 네트워크 인터페이스 설정
-    char *dev = "enp0s3";  // VirtualBox 기본 네트워크 인터페이스
+    char *dev = "enp0s3";  // 실제 환경에 맞게 수정 가능
     handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
     if (handle == NULL) {
         printf("Could not open device %s: %s\n", dev, errbuf);
