@@ -40,7 +40,8 @@ struct tcpheader {
 void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
     struct ethheader *eth = (struct ethheader *)packet;
 
-    if (ntohs(eth->ether_type) == 0x0800) {  // IP 패킷인지 확인
+    // Check if it is an IP packet
+    if (ntohs(eth->ether_type) == 0x0800) {
         struct ipheader *ip = (struct ipheader *)(packet + sizeof(struct ethheader));
 
         printf("\n==================================================\n");
@@ -56,6 +57,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
         printf("    ▸ Src IP  : %s\n", inet_ntoa(ip->iph_sourceip));
         printf("    ▸ Dst IP  : %s\n", inet_ntoa(ip->iph_destip));
 
+        // Check for TCP packets
         if (ip->iph_protocol == IPPROTO_TCP) {
             struct tcpheader *tcp = (struct tcpheader *)(packet + sizeof(struct ethheader) + (ip->iph_ihl * 4));
 
@@ -63,7 +65,7 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
             printf("    ▸ Src Port: %d\n", ntohs(tcp->tcp_sport));
             printf("    ▸ Dst Port: %d\n", ntohs(tcp->tcp_dport));
 
-            // TCP Payload 출력
+            // Calculate TCP Payload length and display the first 20 bytes
             int ip_header_len = ip->iph_ihl * 4;
             int tcp_header_len = (tcp->tcp_offx2 >> 4) * 4;
             int payload_offset = sizeof(struct ethheader) + ip_header_len + tcp_header_len;
@@ -90,20 +92,34 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 int main() {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *handle;
+    struct bpf_program fp;
+    char filter_exp[] = "tcp";  // Set filter to capture only TCP packets
+    bpf_u_int32 net;
 
-    // 네트워크 인터페이스 설정
-    char *dev = "enp0s3";  // 실제 환경에 맞게 수정 가능
+    // Open the network interface for packet capturing
+    char *dev = "enp0s3";  // Change this based on your environment
     handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
     if (handle == NULL) {
         printf("Could not open device %s: %s\n", dev, errbuf);
         return 1;
     }
 
+    // Compile and set filter to capture only TCP packets
+    if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
+        pcap_perror(handle, "Error compiling filter:");
+        return 1;
+    }
+    if (pcap_setfilter(handle, &fp) == -1) {
+        pcap_perror(handle, "Error setting filter:");
+        return 1;
+    }
+
     printf("Sniffing on device: %s\n", dev);
     
-    // 패킷 캡처 시작
+    // Start packet capture
     pcap_loop(handle, 10, got_packet, NULL);
 
+    // Close the capture handle after completing the capture
     pcap_close(handle);
     return 0;
 }
