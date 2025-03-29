@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <arpa/inet.h>
+#include <ctype.h>  // ← ASCII 출력에 필요
 
 /* Ethernet header */
 struct ethheader {
@@ -73,9 +74,16 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *pa
 
             printf("\n[+] Payload (First 20 bytes)\n");
             if (payload_length > 0) {
-                printf("    ▸ ");
+                printf("    ▸ HEX    : ");
                 for (int i = 0; i < 20 && i < payload_length; i++) {
                     printf("%02x ", packet[payload_offset + i]);
+                }
+                printf("\n");
+
+                printf("    ▸ ASCII  : ");
+                for (int i = 0; i < 20 && i < payload_length; i++) {
+                    char c = packet[payload_offset + i];
+                    printf("%c", isprint(c) ? c : '.');
                 }
                 printf("\n");
             } else {
@@ -93,18 +101,18 @@ int main() {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *handle;
     struct bpf_program fp;
-    char filter_exp[] = "tcp";  // Set filter to capture only TCP packets
+    char filter_exp[] = "tcp";  // TCP 패킷만 필터링
     bpf_u_int32 net;
 
-    // Open the network interface for packet capturing
-    char *dev = "enp0s3";  // Change this based on your environment
+    // 네트워크 인터페이스 열기
+    char *dev = "enp0s3";  // 사용 환경에 따라 수정
     handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
     if (handle == NULL) {
         printf("Could not open device %s: %s\n", dev, errbuf);
         return 1;
     }
 
-    // Compile and set filter to capture only TCP packets
+    // TCP 필터 컴파일 및 적용
     if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
         pcap_perror(handle, "Error compiling filter:");
         return 1;
@@ -116,10 +124,10 @@ int main() {
 
     printf("Sniffing on device: %s\n", dev);
     
-    // Start packet capture
+    // 패킷 캡처 시작
     pcap_loop(handle, 10, got_packet, NULL);
 
-    // Close the capture handle after completing the capture
+    // 핸들러 종료
     pcap_close(handle);
     return 0;
 }
